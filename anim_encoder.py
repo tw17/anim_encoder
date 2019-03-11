@@ -31,6 +31,7 @@ import re
 import sys
 import os
 import cv2
+import numpy
 from numpy import *
 from time import time
 
@@ -42,6 +43,10 @@ END_FRAME_PAUSE = 4000
 SIMPLIFICATION_TOLERANCE = 512
 
 MAX_PACKED_HEIGHT = 10000
+
+def default(o):
+    if isinstance(o, numpy.int64): return int(o)  
+    raise TypeError
 
 def slice_size(a, b):
     return (a.stop - a.start) * (b.stop - b.start)
@@ -65,7 +70,7 @@ def simplify(boxes, tol = 0):
     for a,b in boxes:
         sz1 = slice_size(a, b)
         did_combine = False
-        for i in xrange(len(out)):
+        for i in range(len(out)):
             c,d = out[i]
             cu, cv = combine_slices(a, b, c, d)
             sz2 = slice_size(c, d)
@@ -97,11 +102,11 @@ class Allocator2D:
     def allocate(self, w, h):
         bh, bw = shape(self.bitmap)
 
-        for row in xrange(bh - h + 1):
+        for row in range(bh - h + 1):
             if self.available_space[row] < w:
                 continue
 
-            for col in xrange(bw - w + 1):
+            for col in range(bw - w + 1):
                 if self.bitmap[row, col] == 0:
                     if not self.bitmap[row:row+h,col:col+w].any():
                         self.bitmap[row:row+h,col:col+w] = 1
@@ -156,17 +161,17 @@ def generate_animation(anim_name):
 
     # Sort the rects to be packed by largest size first, to improve the packing
     rects_by_size = []
-    for i in xrange(len(images)):
+    for i in range(len(images)):
         src_rects = img_areas[i]
 
-        for j in xrange(len(src_rects)):
+        for j in range(len(src_rects)):
             rects_by_size.append((slice_tuple_size(src_rects[j]), i, j))
 
     rects_by_size.sort(reverse = True)
 
     allocs = [[None] * len(src_rects) for src_rects in img_areas]
 
-    print anim_name,"packing, num rects:",len(rects_by_size),"num frames:",len(images)
+    print(anim_name,"packing, num rects:",len(rects_by_size),"num frames:",len(images))
 
     t0 = time()
 
@@ -191,7 +196,7 @@ def generate_animation(anim_name):
 
             packed[dy:dy+h, dx:dx+w] = src[sy:sy+h, sx:sx+w]
 
-    print anim_name,"packing finished, took:",time() - t0
+    print(anim_name,"packing finished, took:",time() - t0)
 
     packed = packed[0:allocator.num_used_rows]
 
@@ -200,7 +205,7 @@ def generate_animation(anim_name):
     if os.system("pngcrush -q " + anim_name + "_packed_tmp.png " + anim_name + "_packed.png") == 0:
         os.system("rm " + anim_name + "_packed_tmp.png")
     else:
-        print "pngcrush not found, output will not be larger"
+        print("pngcrush not found, output will not be larger")
         os.system("mv " + anim_name + "_packed_tmp.png " + anim_name + "_packed.png")
 
     # Generate JSON to represent the data
@@ -208,13 +213,13 @@ def generate_animation(anim_name):
     delays = (array(times[1:] + [times[-1] + END_FRAME_PAUSE]) - array(times)).tolist()
 
     timeline = []
-    for i in xrange(len(images)):
+    for i in range(len(images)):
         src_rects = img_areas[i]
         dst_rects = allocs[i]
 
         blitlist = []
 
-        for j in xrange(len(src_rects)):
+        for j in range(len(src_rects)):
             a, b = src_rects[j]
             sx, sy = b.start, a.start
             w, h = b.stop - b.start, a.stop - a.start
@@ -224,9 +229,9 @@ def generate_animation(anim_name):
 
         timeline.append({'delay': delays[i], 'blit': blitlist})
 
-    f = open(anim_name + '_anim.js', 'wb')
+    f = open(anim_name + '_anim.js', 'w')
     f.write(anim_name + "_timeline = ")
-    json.dump(timeline, f)
+    json.dump(timeline, f, default=default)
     f.close()
 
 
